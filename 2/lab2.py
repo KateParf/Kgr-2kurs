@@ -32,10 +32,11 @@ def drawTr(image, x0, y0, x1, y1, x2, y2):
     xmin = round(min(x0, x1, x2))
     if (xmin < 0): xmin = 0
     xmax = round(max(x0, x1, x2))
-
+    if (xmax > 1000): xmax = 1000
     ymin = round(min(y0, y1, y2))
     if (ymin < 0): ymin = 0
     ymax = round(max(y0, y1, y2))
+    if (ymax > 1000): ymax = 1000
 
     # рандомный цвет
     rnd1 = random.randint(0, 255)
