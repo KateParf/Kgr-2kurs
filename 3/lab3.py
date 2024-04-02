@@ -83,12 +83,12 @@ def rotate(point, a, b, g, tx, ty):
     return res
 
 # функция для проективного преобразования точки
-def projectiveTransformation(ax, ay, x, y, z, u0, v0): 
+def projectiveTransformation(ax, ay, x, y, u0, v0): 
     # матрица проективного преобразования
     matrix = [[ax, 0, u0],
               [0, ay, v0],
               [0, 0, 1]]
-    coord = [x, y, z]
+    coord = [x, y, 1]
     # получаем новую точку
     res = np.matmul(matrix, coord)
     return res
@@ -121,30 +121,22 @@ def main():
         # сдвиг 
         tx, ty = 0, -200
         # масштабирование
-        ax1, ay1, az1 = 5000, 5000, 5000
+        s = 5000
         ax, ay = 2, -1
         # центр изображения; [0] — количество строк, а [1] — количество столбцов в массиве
         u0, v0 = img.shape[0]/2, img.shape[1]/2
 
-        #po_1 = [5000*v[v1-1][0], 5000*v[v1-1][1], 5000*v[v1-1][2]]
-        po1 = projectiveTransformation(ax1, ay1, v[v1-1][0], v[v1-1][1], v[v1-1][2], 0, 0)
-        po1[2] = az1*v[v1-1][2]
+        po1 = [s*v[v1-1][0], s*v[v1-1][1], s*v[v1-1][2]]
         poRot1 = rotate(po1, 0, 90, 0, tx, ty)
-        point1 = projectiveTransformation(ax, ay, poRot1[0], poRot1[1], 1, u0, v0)
+        point1 = projectiveTransformation(ax, ay, poRot1[0], poRot1[1], u0, v0)
 
-        
-        #po_2 = [5000*v[v2-1][0], 5000*v[v2-1][1], 5000*v[v2-1][2]]
-        po2 = projectiveTransformation(ax1, ay1, v[v2-1][0], v[v2-1][1], v[v2-1][2], 0, 0)
-        po2[2] = az1*v[v2-1][2]
+        po2 = [s*v[v2-1][0], s*v[v2-1][1], s*v[v2-1][2]]
         poRot2 = rotate(po2, 0, 90, 0, tx, ty)
-        point2 = projectiveTransformation(ax, ay, poRot2[0], poRot2[1], 1, u0, v0)
+        point2 = projectiveTransformation(ax, ay, poRot2[0], poRot2[1],u0, v0)
 
-
-        #po_3 = [5000*v[v3-1][0], 5000*v[v3-1][1], 5000*v[v3-1][2]]
-        po3 = projectiveTransformation(ax1, ay1, v[v3-1][0], v[v3-1][1], v[v3-1][2], 0, 0)
-        po3[2] = az1*v[v3-1][2]
+        po3 = [s*v[v3-1][0], s*v[v3-1][1], s*v[v3-1][2]]
         poRot3 = rotate(po3, 0, 90, 0, tx, ty)
-        point3 = projectiveTransformation(ax, ay, poRot3[0], poRot3[1], 1, u0, v0)
+        point3 = projectiveTransformation(ax, ay, poRot3[0], poRot3[1],u0, v0)
 
         # рисуем треугольники
         drawTr(img, zbuffer, point1, point2, point3, poRot1, poRot2, poRot3)
