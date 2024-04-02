@@ -4,89 +4,28 @@ import random
 import numpy as np
 from PIL import Image
 
-file = open("model_1.obj")
-v = []
-f = []
-# парсинг
-for s in file:
-    el = list(map(str, s.split(" ")))
-    key = el[0]
-    if key == "v":   
-        x, y, z = el[1], el[2], el[3]
-        v.append([float(x), float(y), float(z)])
-    if key == "f":
-        f1, f2, f3 = el[1], el[2], el[3]
-        f.append([f1, f2, f3])
 
+# функция нахождения нормали и скаляра
+def findScalar(x0, y0, z0, x1, y1, z1, x2, y2, z2):
+    # ищем нормаль с помощью векторного произведения
+    normal = np.cross([x1-x2, y1-y2, z1-z2], [x1-x0, y1-y0, z1-z0])
 
-# определяем функцию для поворота точки вокруг заданных осей
-def rotate(point, a, b, g, tx, ty):
-    # создаем матрицы поворота вокруг осей x, y, z
-    R1 = [[1, 0, 0], [0, math.cos(a), math.sin(a)], [0, -math.sin(a), math.cos(a)]]
-
-    R2 = [[math.cos(b), 0, math.sin(b)], [0, 1, 0], [-math.sin(b), 0, math.cos(b)]]
-
-    R3 = [[math.cos(g), math.sin(g), 0], [-math.sin(g), math.cos(g), 0], [0, 0, 1]]
-
-    # умножаем матрицы поворота для получения итоговой матрицы поворота
-    R =  np.matmul(R1, R2)
-
-    Rfin = np.matmul(R, R3)
-
-    xyz = [point[0], point[1], point[2]]
-    # умножаем итоговую матрицу поворота на точку для получения повернутой точки
-    res = np.matmul(Rfin, xyz)
-
-    # добавляем сдвиг к координатам точки
-    res[0] += tx
-    res[1] += ty
-
-    return res
-
-def projectiveTransformation(ax, ay, x, y, z, img): 
-    # создаем матрицу проективного преобразования
-    matrix = [[ax, 0, img.shape[1] / 2],
-              [0, ay, img.shape[0] / 2],
-              [0, 0, 1]]
-    coord = [x, y, 1]
-    # умножаем матрицу проективного преобразования на точку для получения преобразованной точки
-    res = np.dot(matrix, coord)
-    return res
-
-# функция вычисления нормали
-def findNormal(x0, y0, z0, x1, y1, z1, x2, y2, z2):
-    i = [1.0, 0.0, 0.0]
-    j = [0.0, 1.0, 0.0]
-    k = [0.0, 0.0, 1.0]
-
-    #n = [i[0] *((y1 - y0)*(z1-z2) - (z1-z0)*(y1-y2)), 
-    #     j[1]*((x1-x0)*(z1-z2) - (z1-z0)*(x1-x2)), 
-    #     k[2]*((x1-x0)*(y1-y2) - (y1-y0)*(x1-x2))]
-    
-    n = np.cross(np.array([x1-x2, y1-y2, z1-z2]), np.array([x1-x0, y1-y0, z1-z0]))
-
-    return n
-
-def scalar(x0, y0, z0, x1, y1, z1, x2, y2, z2):
-     # координаты нормали
-    normal = findNormal(x0, y0, z0, x1, y1, z1, x2, y2, z2)
     # ||n||
-    #norma = (sqrt(n[0]**2 + n[1]**2 + n[2]**2))
-    norma = np.linalg.norm(normal)
+    norma = (sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2))
+
     l = [0.0, 0.0, 1.0]
-    if norma != 0: 
-        return np.dot(normal, l) / norma
-
-
+    if norma != 0:
+        return np.matmul(normal, l) / norma
+    return 0
 
 # функция вычисления барицентрических координат
 def barycentric(x, y, x0, y0, x1, y1, x2, y2):
-    if ((x1 - x2)*(y0 - y2) - (y1 - y2)*(x0 - x2) != 0):
+    if ((x1 - x2)*(y0 - y2) - (y1 - y2)*(x0 - x2) != 0): # чтоб не было ошибки с делением на 0
         lambda0 = ((x1 - x2)*(y - y2) - (y1 - y2)*(x - x2)) / ((x1 -
         x2)*(y0 - y2) - (y1 - y2)*(x0 - x2))
     else: lambda0 = 0
 
-    if ((x2 - x0)*(y1 - y0) - (y2 - y0)*(x1 - x0) != 0):
+    if ((x2 - x0)*(y1 - y0) - (y2 - y0)*(x1 - x0) != 0): # чтоб не было ошибки с делением на 0
         lambda1 = ((x2 - x0)*(y - y0) - (y2 - y0)*(x - x0)) / ((x2 -
         x0)*(y1 - y0) - (y2 - y0)*(x1 - x0))
     else: lambda1 = 0
@@ -106,50 +45,115 @@ def drawTr(image, zbuf, point1, point2, point3, poRot1, poRot2, poRot3):
     ymax = math.ceil(max(point1[1], point2[1], point3[1]))
     if (ymax > len(image)): ymax = len(image)
     
-    cosNL = scalar(poRot1[0], poRot1[1], poRot1[2], poRot2[0], poRot2[1], poRot2[2], poRot3[0], poRot3[1], poRot3[2])
+    # косинус угла падения направленного света для базового освещения
+    cosNL = findScalar(poRot1[0], poRot1[1], poRot1[2], poRot2[0], poRot2[1], poRot2[2], poRot3[0], poRot3[1], poRot3[2])
     color = 255*cosNL
 
     for x in range(xmin, xmax):
         for y in range(ymin, ymax):
                 lambds = barycentric(x, y, point1[0], point1[1], point2[0], point2[1], point3[0], point3[1])
                 if (lambds[0] >= 0 and lambds[1] >= 0 and lambds[2] >= 0):
+                    # вычисляем z-координату исходного полигона (с учетом поворота)
                     z = lambds[0]*poRot1[2] + lambds[1]*poRot2[2] + lambds[2]*poRot3[2]
                     if z <= zbuf[y][x]:
                         image[y, x] = (color, 0, 0)
                         zbuf[y][x] = z                
             
-  
-# создаем пустое изображение и z-буфер
-img = np.full((1000, 1000, 3), 255, dtype=np.uint8)
-zbuffer = [[1500.0 for j in range(2000)] for i in range(2000)]
 
-for fa in f:
-    v1, vt1, vn1 = map(int, fa[0].split("/"))
-    v2, vt2, vn2 = map(int, fa[1].split("/"))
-    v3, vt3, vn3 = map(int, fa[2].split("/"))
+# функция для поворота точки вокруг заданных осей
+def rotate(point, a, b, g, tx, ty):
+    # матрицы поворота вокруг осей x, y, z
+    R1 = [[1, 0, 0], [0, math.cos(a), math.sin(a)], [0, -math.sin(a), math.cos(a)]]
 
-    #сдвиг 
-    tx, ty = 0, -200
+    R2 = [[math.cos(b), 0, math.sin(b)], [0, 1, 0], [-math.sin(b), 0, math.cos(b)]]
 
-    ax, ay = 2, -1
+    R3 = [[math.cos(g), math.sin(g), 0], [-math.sin(g), math.cos(g), 0], [0, 0, 1]]
 
-    po1 = [5000*v[v1-1][0], 5000*v[v1-1][1], 5000*v[v1-1][2]]
-    poRot1 = rotate(po1, 45, 90, 0, tx, ty)
-    point1 = projectiveTransformation(ax, ay, poRot1[0], poRot1[1], poRot1[2], img)
+    # умножаем матрицы поворота для получения итоговой матрицы поворота
+    R =  np.matmul(R1, R2)
+    Rfin = np.matmul(R, R3)
 
-    po2 = [5000*v[v2-1][0], 5000*v[v2-1][1], 5000*v[v2-1][2]]
-    poRot2 = rotate(po2, 45, 90, 0, tx, ty)
-    point2 = projectiveTransformation(ax, ay, poRot2[0], poRot2[1], poRot2[2], img)
+    # умножаем итоговую матрицу поворота на точку для получения повернутой точки
+    res = np.matmul(Rfin, point)
 
-    po3 = [5000*v[v3-1][0], 5000*v[v3-1][1], 5000*v[v3-1][2]]
-    poRot3 = rotate(po3, 45, 90, 0, tx, ty)
-    point3 = projectiveTransformation(ax, ay, poRot3[0], poRot3[1], poRot3[2], img)
+    # добавляем сдвиг к координатам точки
+    res[0] += tx
+    res[1] += ty
+
+    return res
+
+# функция для проективного преобразования точки
+def projectiveTransformation(ax, ay, x, y, z, u0, v0): 
+    # матрица проективного преобразования
+    matrix = [[ax, 0, u0],
+              [0, ay, v0],
+              [0, 0, 1]]
+    coord = [x, y, z]
+    # получаем новую точку
+    res = np.matmul(matrix, coord)
+    return res
+
+def main():
+
+    file = open("model_1.obj")
+    v = []
+    f = []
+    # парсинг
+    for s in file:
+        el = list(map(str, s.split(" ")))
+        key = el[0]
+        if key == "v":   
+            x, y, z = el[1], el[2], el[3]
+            v.append([float(x), float(y), float(z)])
+        if key == "f":
+            f1, f2, f3 = el[1], el[2], el[3]
+            f.append([f1, f2, f3])
+
+    # создаем пустое изображение и z-буфер
+    img = np.full((1000, 1000, 3), 255, dtype=np.uint8)
+    zbuffer = [[1000.0 for j in range(1000)] for i in range(1000)]
+
+    for fa in f:
+        v1, vt1, vn1 = map(int, fa[0].split("/"))
+        v2, vt2, vn2 = map(int, fa[1].split("/"))
+        v3, vt3, vn3 = map(int, fa[2].split("/"))
+
+        # сдвиг 
+        tx, ty = 0, -200
+        # масштабирование
+        ax1, ay1, az1 = 5000, 5000, 5000
+        ax, ay = 2, -1
+        # центр изображения; [0] — количество строк, а [1] — количество столбцов в массиве
+        u0, v0 = img.shape[0]/2, img.shape[1]/2
+
+        #po_1 = [5000*v[v1-1][0], 5000*v[v1-1][1], 5000*v[v1-1][2]]
+        po1 = projectiveTransformation(ax1, ay1, v[v1-1][0], v[v1-1][1], v[v1-1][2], 0, 0)
+        po1[2] = az1*v[v1-1][2]
+        poRot1 = rotate(po1, 0, 90, 0, tx, ty)
+        point1 = projectiveTransformation(ax, ay, poRot1[0], poRot1[1], 1, u0, v0)
+
+        
+        #po_2 = [5000*v[v2-1][0], 5000*v[v2-1][1], 5000*v[v2-1][2]]
+        po2 = projectiveTransformation(ax1, ay1, v[v2-1][0], v[v2-1][1], v[v2-1][2], 0, 0)
+        po2[2] = az1*v[v2-1][2]
+        poRot2 = rotate(po2, 0, 90, 0, tx, ty)
+        point2 = projectiveTransformation(ax, ay, poRot2[0], poRot2[1], 1, u0, v0)
 
 
-    drawTr(img, zbuffer, point1, point2, point3, poRot1, poRot2, poRot3)
-  
-   
-img_img = Image.fromarray(img)
-img_img.show()
-image_filename = "model.jpeg"
-img_img.save(image_filename)
+        #po_3 = [5000*v[v3-1][0], 5000*v[v3-1][1], 5000*v[v3-1][2]]
+        po3 = projectiveTransformation(ax1, ay1, v[v3-1][0], v[v3-1][1], v[v3-1][2], 0, 0)
+        po3[2] = az1*v[v3-1][2]
+        poRot3 = rotate(po3, 0, 90, 0, tx, ty)
+        point3 = projectiveTransformation(ax, ay, poRot3[0], poRot3[1], 1, u0, v0)
+
+        # рисуем треугольники
+        drawTr(img, zbuffer, point1, point2, point3, poRot1, poRot2, poRot3)
+    
+    
+    img_img = Image.fromarray(img)
+    img_img.show()
+    image_filename = "model.jpeg"
+    img_img.save(image_filename)
+
+# вызов основной программы
+main()
