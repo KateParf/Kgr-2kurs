@@ -4,11 +4,15 @@ import random
 import numpy as np
 from PIL import Image
 
+# функция нахождения нормали 
+def findNormal(x0, y0, z0, x1, y1, z1, x2, y2, z2):
+    normal = np.cross([x1-x2, y1-y2, z1-z2], [x1-x0, y1-y0, z1-z0])
+    return normal
 
-# функция нахождения нормали и скаляра
+# функция нахождения скаляра
 def findScalar(x0, y0, z0, x1, y1, z1, x2, y2, z2):
     # ищем нормаль с помощью векторного произведения
-    normal = np.cross([x1-x2, y1-y2, z1-z2], [x1-x0, y1-y0, z1-z0])
+    normal = findNormal(x0, y0, z0, x1, y1, z1, x2, y2, z2)
 
     # ||n||
     norma = (sqrt(normal[0]**2 + normal[1]**2 + normal[2]**2))
@@ -34,7 +38,7 @@ def barycentric(x, y, x0, y0, x1, y1, x2, y2):
     return [lambda0, lambda1, lambda2]
 
 # функцию отрисовки треугольника 
-def drawTr(image, zbuf, point1, point2, point3, poRot1, poRot2, poRot3):
+def drawTr(image, zbuf, gouraud, point1, point2, point3, poRot1, poRot2, poRot3):
 
     xmin = math.floor(min(point1[0], point2[0], point3[0]))
     if (xmin < 0): xmin = 0
@@ -47,19 +51,20 @@ def drawTr(image, zbuf, point1, point2, point3, poRot1, poRot2, poRot3):
     
     # косинус угла падения направленного света для базового освещения
     cosNL = findScalar(poRot1[0], poRot1[1], poRot1[2], poRot2[0], poRot2[1], poRot2[2], poRot3[0], poRot3[1], poRot3[2])
-    color = 255*cosNL
+    color = -255*cosNL
 
     for x in range(xmin, xmax):
         for y in range(ymin, ymax):
                 lambds = barycentric(x, y, point1[0], point1[1], point2[0], point2[1], point3[0], point3[1])
                 if (lambds[0] >= 0 and lambds[1] >= 0 and lambds[2] >= 0):
+                    # вычисляем ззначение яркости (цвета) пикселя
+                    I = -225*(lambds[0]*gouraud[0] + lambds[1]*gouraud[1] + lambds[2]*gouraud[2])
                     # вычисляем z-координату исходного полигона (с учетом поворота)
                     z = lambds[0]*poRot1[2] + lambds[1]*poRot2[2] + lambds[2]*poRot3[2]
                     if z <= zbuf[y][x]:
-                        image[y, x] = (0, color, 0)
+                        image[y, x] = (I, I, I)
                         zbuf[y][x] = z                
             
-
 # функция для поворота точки вокруг заданных осей
 def rotate(point, a, b, g, tx, ty):
     # матрицы поворота вокруг осей x, y, z
@@ -83,7 +88,7 @@ def rotate(point, a, b, g, tx, ty):
     return res
 
 # функция для проективного преобразования точки
-def projectiveTransformation(ax, ay, x, y, z, u0, v0): 
+def projectiveTransformation(ax, ay, x, y, u0, v0): 
     # матрица проективного преобразования
     matrix = [[ax, 0, u0],
               [0, ay, v0],
@@ -94,11 +99,36 @@ def projectiveTransformation(ax, ay, x, y, z, u0, v0):
     res = np.matmul(matrix, coord)
     return res
 
+# функция затенения Гуро
+def darkeningGuro(normals):
+    l = [0.0, 0.0, 1.0]
+
+    normal1 = normals[0]
+    normal2 = normals[1]
+    normal3 = normals[2]
+    
+    I1 = np.dot(normal1, l) / (np.linalg.norm(normal1))
+    I2 = np.dot(normal2, l) / (np.linalg.norm(normal2))
+    I3 = np.dot(normal3, l) / (np.linalg.norm(normal3))
+    return [I1, I2, I3]
+
+# подсчет нормалей для каждого полигона перед отрисовкой
+def allNormals(v, f):
+    normals = [[0, 0, 0]]*len(v)
+    for i in f:
+        n = findNormal(v[i[0] - 1][0], v[i[0] - 1][1], v[i[0] - 1][2], 
+                       v[i[1] - 1][0], v[i[1] - 1][1], v[i[1] - 1][2], 
+                       v[i[2] - 1][0], v[i[2] - 1][1], v[i[2] - 1][2])
+        for j in range(3):
+             normals[i[j] - 1] += n
+    return normals
+
 def main():
 
-    file = open("./model.obj")
+    file = open("model_1.obj")
     v = []
     f = []
+    ffornorms = []
     # парсинг
     for s in file:
         el = list(map(str, s.split(" ")))
@@ -110,9 +140,16 @@ def main():
             f1, f2, f3 = el[1], el[2], el[3]
             f.append([f1, f2, f3])
 
+            f1, f2, f3 = el[1].split("/"), el[2].split("/"), el[3].split("/")
+            f1[0], f1[1], f1[2] = int(f1[0]), int(f1[1]), int(f1[2])
+            f2[0], f2[1], f2[2] = int(f2[0]), int(f2[1]), int(f2[2])
+            f3[0], f3[1], f3[2] = int(f3[0]), int(f3[1]), int(f3[2])
+            ffornorms.append([f1[0], f2[0], f3[0]])
+
     # создаем пустое изображение и z-буфер
     img = np.full((1000, 1000, 3), 255, dtype=np.uint8)
     zbuffer = [[1000.0 for j in range(1000)] for i in range(1000)]
+    normalsForPoints = allNormals(v, ffornorms)
 
     for fa in f:
         v1, vt1, vn1 = map(int, fa[0].split("/"))
@@ -120,29 +157,32 @@ def main():
         v3, vt3, vn3 = map(int, fa[2].split("/"))
 
         # сдвиг 
-        tx, ty = 0, 0
+        tx, ty = 0, -200
         # масштабирование
-        ax, ay = 500, -500
+        s = 5000
+        ax, ay = 1, -1
         # центр изображения; [0] — количество строк, а [1] — количество столбцов в массиве
         u0, v0 = img.shape[0]/2, img.shape[1]/2
 
-        po_1 = [v[v1-1][0], v[v1-1][1], v[v1-1][2]]        
-        poRot1 = rotate(po_1, 0, 90, 0, tx, ty)
-        point1 = projectiveTransformation(ax, ay, poRot1[0], poRot1[1], poRot1[2], u0, v0)
+        # нормали для текущих точек
+        normals = [normalsForPoints[v1 - 1], normalsForPoints[v2 - 1], normalsForPoints[v3 - 1]]
 
+        po1 = [s*v[v1-1][0], s*v[v1-1][1], s*v[v1-1][2]]
+        poRot1 = rotate(po1, 0, 91, 0, tx, ty)
+        point1 = projectiveTransformation(ax, ay, poRot1[0], poRot1[1], u0, v0)
+
+        po2 = [s*v[v2-1][0], s*v[v2-1][1], s*v[v2-1][2]]
+        poRot2 = rotate(po2, 0, 91, 0, tx, ty)
+        point2 = projectiveTransformation(ax, ay, poRot2[0], poRot2[1],u0, v0)
+
+        po3 = [s*v[v3-1][0], s*v[v3-1][1], s*v[v3-1][2]]
+        poRot3 = rotate(po3, 0, 91, 0, tx, ty)
+        point3 = projectiveTransformation(ax, ay, poRot3[0], poRot3[1],u0, v0)
         
-        po_2 = [v[v2-1][0], v[v2-1][1], v[v2-1][2]]
-        poRot2 = rotate(po_2, 0, 90, 0, tx, ty)
-        point2 = projectiveTransformation(ax, ay, poRot2[0], poRot2[1], poRot2[2], u0, v0)
 
-
-        po_3 = [v[v3-1][0], v[v3-1][1], v[v3-1][2]]
-        poRot3 = rotate(po_3, 0, 90, 0, tx, ty)
-        point3 = projectiveTransformation(ax, ay, poRot3[0], poRot3[1], poRot3[2], u0, v0)
-
+        gouraud = darkeningGuro(normals)
         # рисуем треугольники
-        drawTr(img, zbuffer, point1, point2, point3, poRot1, poRot2, poRot3)
-    
+        drawTr(img, zbuffer, gouraud, point1, point2, point3, poRot1, poRot2, poRot3)
     
     img_img = Image.fromarray(img)
     img_img.show()
