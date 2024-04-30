@@ -65,7 +65,7 @@ def drawTr(image, gouraud, point1, point2, point3, poRot1, poRot2, poRot3, vtpo1
                     # вычисляем z-координату исходного полигона (с учетом поворота)
                     z = lambds[0]*poRot1[2] + lambds[1]*poRot2[2] + lambds[2]*poRot3[2]
                     if z <= zbuffer[y][x]:
-                        #image[y, x] = (I, 0, 0)
+                        image[y, x] = (I, 0, 0)
                         image[y, x] = imgTextures.getpixel((w, h))
                         zbuffer[y][x] = z                
             
@@ -128,9 +128,9 @@ def allNormals(v, f):
     return normals
 
 # файл модели
-file = open("model_1.obj")
+file = open("model.obj")
 # текстуры
-imgTextures = Image.open("bunny-atlas.jpg") 
+imgTextures = Image.open("model.bmp") 
 # Flip the original image vertically
 imgTextures = imgTextures.transpose(method=Image.FLIP_TOP_BOTTOM)
 
@@ -163,9 +163,9 @@ img = np.full((1000, 1000, 3), 255, dtype=np.uint8)
 zbuffer = [[1500.0 for j in range(1000)] for i in range(1000)]
 normalsForPoints = allNormals(v, ffornorms)
 # сдвиг 
-tx, ty = 0, -200
+tx, ty = 0, 0
 # масштабирование
-s = 5000
+s = 500
 ax, ay = 1, -1
 # центр изображения; [0] — количество строк, а [1] — количество столбцов в массиве
 u0, v0 = img.shape[0]/2, img.shape[1]/2
@@ -202,5 +202,5 @@ for fa in f:
 
 img_img = Image.fromarray(img)
 img_img.show()
-image_filename = "model.jpeg"
+image_filename = "model2.jpeg"
 img_img.save(image_filename)
